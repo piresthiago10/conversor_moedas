@@ -1,27 +1,46 @@
-from rest_framework import status, viewsets, generics
-from conversor_moedas.models import Conversao
-from conversor_moedas.api.serializers import ConversaoSerializer, ConversaoSerializerV2
-from rest_framework.response import Response
-from datetime import datetime
 from conversor_moedas.api.integrations.crypto_compare import CryptoCompareApi
+from conversor_moedas.api.serializers import (ConversaoSerializer,
+                                              ConversaoSerializerV2)
+from conversor_moedas.api.validators import Validation
+from conversor_moedas.models import Conversao
+from django.http.response import Http404
+from rest_framework import generics, status, viewsets
+
 
 class ConversaoViewSet(viewsets.ModelViewSet):
     """ Exibe todos as conversões de moedas """
-    queryset = Conversao.objects.all()
-    serializer_class = ConversaoSerializer
-    http_method_names = ['get', 'post']
 
-class ListaConversoes(generics.ListAPIView):
     def get_queryset(self):
-        queryset = Conversao.objects.all().order_by('-data_hora')
-        return queryset
-    serializer_class = ConversaoSerializerV2
+        try:
+            moeda_origem = self.request.query_params.get('from')
+            moeda_final = self.request.query_params.get('to')
+            valor_conversao = float(self.request.query_params.get('amount'))
+        except TypeError:
+            raise Http404('Parametro não encontrado')
 
-class ListaConversoesViewSet(viewsets.ModelViewSet):
-    """ Exibe todos as conversões de moedas """
-    queryset = Conversao.objects.all()
-    serializer_class = ConversaoSerializerV2
-    http_method_names = ['get', 'post']
+        data = {
+            "moeda_origem": moeda_origem,
+            "moeda_final": moeda_final,
+            "valor_conversao": valor_conversao,
+        }
+
+        validation = Validation(data)
+        data = validation.validate()
+        valor_convertido = self.converte_moedas(
+            moeda_origem, moeda_final, valor_conversao)
+
+        conversao = Conversao(
+            moeda_origem=data['moeda_origem'],
+            moeda_final=data['moeda_final'],
+            valor_conversao=data['valor_conversao'],
+            valor_convertido=valor_convertido,
+        )
+
+        conversao.save()
+
+        queryset = Conversao.objects.filter(pk=conversao.pk)
+
+        return queryset
 
     def get_valores_moedas(self):
         crypto_compare_api = CryptoCompareApi()
@@ -50,24 +69,16 @@ class ListaConversoesViewSet(viewsets.ModelViewSet):
         conversao_moeda = (1.00 / valor_moeda_origem) * valor_moeda_final
         valor_convertido = conversao_moeda * valor_conversao
 
-        dados_conversao = {
-            "moeda_origem": moeda_origem,
-            "moeda_final": moeda_final,
-            "valor_conversao": valor_conversao,
-            "valor_convertido": valor_convertido,
-            "data_hora": datetime.now()
-        }
+        return valor_convertido
 
-        return dados_conversao
+    queryset = Conversao.objects.all()
+    serializer_class = ConversaoSerializer
+    http_method_names = ['get']
 
-    def create(self, request, moeda_origem, moeda_final, valor_conversao):
-        moeda_origem = moeda_origem
-        moeda_final = moeda_final
-        valor_conversao = valor_conversao
-        dados_conversao = self.converte_moedas(moeda_origem, moeda_final, valor_conversao)
-        serializer = self.serializer_class(data=dados_conversao)
-        if serializer.is_valid():
-            serializer.save()
-            response = Response(serializer.data, status=status.HTTP_201_CREATED)
-            return response
 
+class ListaConversoes(generics.ListAPIView):
+    def get_queryset(self):
+        queryset = Conversao.objects.all().order_by('-data_hora')
+        return queryset
+    serializer_class = ConversaoSerializerV2
+    http_method_names = ['get']
