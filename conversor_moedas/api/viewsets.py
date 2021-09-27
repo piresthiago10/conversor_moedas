@@ -1,3 +1,4 @@
+from django.db.models.query import QuerySet
 from conversor_moedas.api.integrations.crypto_compare import CryptoCompareApi
 from conversor_moedas.api.serializers import (ConversaoSerializer,
                                               ConversaoSerializerV2)
@@ -10,7 +11,8 @@ from rest_framework import generics, status, viewsets
 class ConversaoViewSet(viewsets.ModelViewSet):
     """ Exibe todos as conversões de moedas """
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet:
+        """ Sobreescrita do metodo queryset para capturar os pametros da url e armazenar no banco de dados """
         try:
             moeda_origem = self.request.query_params.get('from')
             moeda_final = self.request.query_params.get('to')
@@ -42,7 +44,8 @@ class ConversaoViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-    def get_valores_moedas(self):
+    def get_valores_moedas(self) -> dict:
+        """ Busca na api do CryptoCompare as moedas utilizadas na aplicação """
         crypto_compare_api = CryptoCompareApi()
         lastro_dolar = crypto_compare_api.get_lastro()
         """ É possível implementar um loop para percorrer uma lista com
@@ -56,7 +59,8 @@ class ConversaoViewSet(viewsets.ModelViewSet):
 
         return moedas
 
-    def converte_moedas(self, moeda_origem, moeda_final, valor_conversao):
+    def converte_moedas(self, moeda_origem: str, moeda_final: str, valor_conversao: float) -> float:
+        """ Metodo da conversão de moedas """
         moedas = self.get_valores_moedas()
         if moeda_origem == "USD":
             valor_moeda_origem = 1.0
@@ -77,7 +81,8 @@ class ConversaoViewSet(viewsets.ModelViewSet):
 
 
 class ListaConversoes(generics.ListAPIView):
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet:
+        """ Uma generic ListApiView para   """
         queryset = Conversao.objects.all().order_by('-data_hora')
         return queryset
     serializer_class = ConversaoSerializerV2
