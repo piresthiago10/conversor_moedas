@@ -82,7 +82,7 @@ class ConversaoViewSet(viewsets.ModelViewSet):
 
 class ListaConversoes(generics.ListAPIView):
     def get_queryset(self) -> QuerySet:
-        """ Uma generic ListApiView para   """
+        """ Uma generic ListApiView para listar todas as conversões realizadas na api  """
         queryset = Conversao.objects.all().order_by('-data_hora')
         return queryset
     serializer_class = ConversaoSerializerV2
